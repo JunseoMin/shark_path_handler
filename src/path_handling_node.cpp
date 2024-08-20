@@ -6,6 +6,7 @@ PathHandlingNode::PathHandlingNode(ros::NodeHandle nh_)
   ROS_INFO("constructed!!");
   odom_pub_ = nh_.advertise<nav_msgs::Odometry>("/odom",10);
   odom_subs_ = nh_.subscribe<nav_msgs::Odometry>("/Odometry", 10, &PathHandlingNode::odom_cb, this);  
+  odom_subs_valid_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 10, &PathHandlingNode::odom_cb_valid, this);  
 
   gps_subs_ = nh_.subscribe<morai_msgs::GPSMessage>("/gps",10, &PathHandlingNode::gps_cb, this);
   timer_ = nh_.createTimer(ros::Duration(0.1), &PathHandlingNode::timer_cb, this);
@@ -14,12 +15,37 @@ PathHandlingNode::PathHandlingNode(ros::NodeHandle nh_)
 }
 
 void PathHandlingNode::odom_cb(const nav_msgs::Odometry::ConstPtr& msg){
-  if (!black_flag_) //case not blackout
+  // start if blackout
+  if (!black_flag_) 
   {
     return;
   }
-  pose_ = msg->pose;
-  twist_ = msg->twist;
+
+  geometry_msgs::PoseStamped pose_camera_init;
+  pose_camera_init.pose = msg->pose.pose;
+  pose_camera_init.header.frame_id = "camera_init";
+  pose_camera_init.header.stamp = ros::Time::now();
+
+  geometry_msgs::PoseStamped pose_odom;
+  tf2::doTransform(pose_camera_init, pose_odom, last_transform_);
+
+  odom_.pose.pose.position.x += pose_odom.pose.position.x;
+  odom_.pose.pose.position.y += pose_odom.pose.position.y;
+  odom_.pose.pose.position.z += pose_odom.pose.position.z;
+
+  odom_.pose.pose.orientation = pose_odom.pose.orientation;
+  odom_.twist = msg->twist;
+}
+
+void PathHandlingNode::odom_cb_valid(const nav_msgs::Odometry::ConstPtr& msg){
+  //case not blackout
+  if (!black_flag_) 
+  {
+    pose_ = msg->pose;
+    twist_ = msg->twist;
+    odom_ = *msg;  
+  }
+  return;
 }
 
 void PathHandlingNode::gps_cb(const morai_msgs::GPSMessage::ConstPtr& msg){
@@ -32,14 +58,12 @@ void PathHandlingNode::gps_cb(const morai_msgs::GPSMessage::ConstPtr& msg){
   black_flag_ = true;
 }
 
-void PathHandlingNode::timer_cb(const ros::TimerEvent&){
-  if (!black_flag_)
-  {
+void PathHandlingNode::timer_cb(const ros::TimerEvent&) {
+  if (!black_flag_) {
     return;
   }
 
-  try
-  {
+  try {
     ros::Time now = ros::Time::now();
 
     geometry_msgs::TransformStamped T_cb;
@@ -60,22 +84,12 @@ void PathHandlingNode::timer_cb(const ros::TimerEvent&){
     T_co.header.frame_id = "camera_init";
     T_co.child_frame_id = "odom";
 
-    geometry_msgs::PoseStamped pose_camera_init;
-    pose_camera_init.pose = pose_.pose;
-    pose_camera_init.header.frame_id = "camera_init";
-    pose_camera_init.header.stamp = now;
-
-    geometry_msgs::PoseStamped pose_odom;
-    tf2::doTransform(pose_camera_init, pose_odom, T_co);
+    last_transform_ = T_co;
 
     odom_.header.stamp = now;
-    odom_.pose.pose = pose_odom.pose;
-    odom_.twist = twist_;
-
     odom_pub_.publish(odom_);
-  }
-  catch (tf2::TransformException &ex)
-  {
+  } 
+  catch (tf2::TransformException &ex) {
     ROS_WARN("Could not transform pose: %s", ex.what());
   }
 }

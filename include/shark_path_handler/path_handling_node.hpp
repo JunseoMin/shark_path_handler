@@ -26,7 +26,9 @@ public:
 
 private:
   void odom_cb(const nav_msgs::Odometry::ConstPtr& msg);
+  void odom_cb_valid(const nav_msgs::Odometry::ConstPtr& msg);
   void gps_cb(const morai_msgs::GPSMessage::ConstPtr& msg);
+
   void timer_cb(const ros::TimerEvent&);
   void set_odom();
 
@@ -37,6 +39,7 @@ private:
   ros::Publisher sudo_gps_pub_;
 
   ros::Subscriber odom_subs_;
+  ros::Subscriber odom_subs_valid_;
   ros::Publisher odom_pub_;
 
   sensor_msgs::NavSatFix sudo_gps_;
@@ -47,7 +50,7 @@ private:
   ros::Timer timer_;
   geometry_msgs::PoseWithCovariance pose_;
   geometry_msgs::TwistWithCovariance twist_;
-
+  geometry_msgs::TransformStamped last_transform_;
   nav_msgs::Odometry odom_;
 
   bool black_flag_;
