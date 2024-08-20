@@ -12,7 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   tf2
+  tf2_ros
   sensor_msgs
+  morai_msgs
 )
 
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -20,7 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES shark_path_handler
- CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf tf2 sensor_msgs
+ CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf tf2 sensor_msgs tf2_ros morai_msgs
  DEPENDS system_lib
 )
 
