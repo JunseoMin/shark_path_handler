@@ -18,7 +18,6 @@ void PathHandlingNode::odom_cb(const nav_msgs::Odometry::ConstPtr& msg){
   {
     return;
   }
-  
   pose_ = msg->pose;
   twist_ = msg->twist;
 }
@@ -39,15 +38,52 @@ void PathHandlingNode::timer_cb(const ros::TimerEvent&){
     return;
   }
 
-  odom_.header.stamp = ros::Time::now();
-  odom_.pose = pose_;
-  odom_.twist = twist_;
-  odom_pub_.publish(odom_);
+  try
+  {
+    ros::Time now = ros::Time::now();
+
+    geometry_msgs::TransformStamped T_cb;
+    geometry_msgs::TransformStamped T_ob;
+    geometry_msgs::TransformStamped T_co;
+
+    T_cb = tf_buffer_.lookupTransform("camera_init", "base_link", now);
+    T_ob = tf_buffer_.lookupTransform("odom", "base_link", now);
+
+    tf2::Transform tf2_T_cb, tf2_T_ob;
+    tf2::fromMsg(T_cb.transform, tf2_T_cb);
+    tf2::fromMsg(T_ob.transform, tf2_T_ob);
+
+    tf2::Transform tf2_T_co = tf2_T_cb.inverse() * tf2_T_ob;
+
+    T_co.transform = tf2::toMsg(tf2_T_co);
+    T_co.header.stamp = now;
+    T_co.header.frame_id = "camera_init";
+    T_co.child_frame_id = "odom";
+
+    geometry_msgs::PoseStamped pose_camera_init;
+    pose_camera_init.pose = pose_.pose;
+    pose_camera_init.header.frame_id = "camera_init";
+    pose_camera_init.header.stamp = now;
+
+    geometry_msgs::PoseStamped pose_odom;
+    tf2::doTransform(pose_camera_init, pose_odom, T_co);
+
+    odom_.header.stamp = now;
+    odom_.pose.pose = pose_odom.pose;
+    odom_.twist = twist_;
+
+    odom_pub_.publish(odom_);
+  }
+  catch (tf2::TransformException &ex)
+  {
+    ROS_WARN("Could not transform pose: %s", ex.what());
+  }
 }
+
 
 void PathHandlingNode::set_odom(){
   odom_.child_frame_id = "base_link";
-  odom_.header.frame_id = "camera_init";
+  odom_.header.frame_id = "odom";
 }
 
 int main(int argc, char * argv[])
